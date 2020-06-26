@@ -1,6 +1,7 @@
 //
 //  ViewController.swift
 //  hws-07-WhitehousePetitions
+//  Modified to: hws-09-GrandCentralDispatch
 //
 //  Created by Philip Hayes on 6/22/20.
 //  Copyright © 2020 PhilipHayes. All rights reserved.
@@ -33,14 +34,17 @@ class ViewController: UITableViewController {
             urlString = "https://api.whitehouse.gov/v1/petitions.json?signatureCountFloor=10000&limit=100"
         }
         
-        // download petition data. this will run on the main thread and lock the UI until data is loaded
-        if let url = URL(string: urlString) {
-            if let data = try? Data(contentsOf: url) {
-                parse(json: data)
-                return
+        // download petition data. move this off of main queue.
+        DispatchQueue.global(qos: .userInitiated).async {
+            if let url = URL(string: urlString) {
+                if let data = try? Data(contentsOf: url) {
+                    self.parse(json: data)
+                    return
+                }
             }
+            // Place showError inside closure
+            self.showError()
         }
-        showError()
     }
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -67,14 +71,21 @@ class ViewController: UITableViewController {
         if let jsonPetitions = try? decoder.decode(Petitions.self, from: json) {
             petitions = jsonPetitions.results
             filteredPetitions = petitions
-            tableView.reloadData()
+            
+            // Switch to main queue for user interface refresh
+            DispatchQueue.main.async {
+                self.tableView.reloadData()
+            }
         }
     }
     
     func showError() {
-        let ac = UIAlertController(title: "Loading error", message: "There was a problem loading petitions, please check connection and try again.", preferredStyle: .alert)
-        ac.addAction(UIAlertAction(title: "Ok", style: .default, handler: nil))
-        present(ac, animated: true)
+        // Make sure alert is generated on main queue
+        DispatchQueue.main.async {
+            let ac = UIAlertController(title: "Loading error", message: "There was a problem loading petitions, please check connection and try again.", preferredStyle: .alert)
+            ac.addAction(UIAlertAction(title: "Ok", style: .default, handler: nil))
+            self.present(ac, animated: true)
+        }
     }
     
     @objc func showCredits() {
